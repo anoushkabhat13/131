@@ -6,6 +6,7 @@ class Type:
     INT = "int"
     BOOL = "bool"
     STRING = "string"
+    NIL = 'nil'
 
 # Represents a value, which has a type and its value
 class Value:
@@ -25,10 +26,13 @@ def create_value(val):
         return Value(Type.BOOL, True)
     elif val == InterpreterBase.FALSE_DEF:
         return Value(Type.BOOL, False)
+    elif val == InterpreterBase.NIL_DEF:
+        return Value(Type.NIL)
     elif isinstance(val, str):
         return Value(Type.STRING, val)
     elif isinstance(val, int):
         return Value(Type.INT, val)
+
     else:
         raise ValueError("Unknown value type")
 
@@ -38,8 +42,12 @@ def get_printable(val):
         return str(val.value())
     if val.type() == Type.STRING:
         return val.value()
+    #handles Booleans
     if val.type() == Type.BOOL:
         if val.value() is True:
             return "true"
         return "false"
+    #add nill case
+    if val.type() == Type.NIL: 
+        return val.value()
     return None

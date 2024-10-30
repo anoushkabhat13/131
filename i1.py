@@ -60,10 +60,15 @@ class Interpreter(InterpreterBase):
 
     def __if(self, if_ast):
         condition = if_ast.get("condition")
-        output = self.__eval_expr(condition)
+        super().output(condition)
+        output = self.__eval_expr(condition).value()
+        super().output(output)
         if (output == True):
             self.__run_statements(if_ast.get("statements"))
-       
+        elif(output == False and if_ast.get("else_statements")!= None):
+            self.__run_statements(if_ast.get("else_statements"))
+        elif(output == False):
+            super().output("HERE")
 
 
 
@@ -172,7 +177,9 @@ class Interpreter(InterpreterBase):
             return self.__call_func(expr_ast)
         #binary operation
         if expr_ast.elem_type in Interpreter.BIN_COMP_OPS:
+            super().output("BIN_COMP")
             return self.__eval_op(expr_ast)
+        
         #unary operation
         if expr_ast.elem_type in Interpreter.UNARY_OPS:
             return self.__eval_unary_op(expr_ast)
@@ -241,6 +248,10 @@ class Interpreter(InterpreterBase):
         self.op_to_lambda[Type.INT]["!="] = lambda x, y: Value(
             Type.BOOL, x.value() != y.value()
         )
+        self.op_to_lambda[Type.INT]["=="] = lambda x, y: Value(
+            Type.BOOL, x.value() == y.value()
+        )
+        
         # add other operators here later for int, string, bool, etc
         # string operations
         self.op_to_lambda[Type.STRING] = {}
@@ -256,16 +267,16 @@ class Interpreter(InterpreterBase):
         #bool operations
         self.op_to_lambda[Type.BOOL] = {}
         self.op_to_lambda[Type.BOOL]["||"] = lambda x, y: Value(
-            x.type(), x.value() or y.value()
+            Type.BOOL, x.value() or y.value()
         )
         self.op_to_lambda[Type.BOOL]["&&"] = lambda x, y: Value(
-            x.type(), x.value() and y.value()
+            Type.BOOL, x.value() and y.value()
         )
         self.op_to_lambda[Type.BOOL]["=="] = lambda x, y: Value(
-            x.type(), x.value() == y.value()
+            Type.BOOL, x.value() == y.value()
         )
         self.op_to_lambda[Type.BOOL]["!="] = lambda x, y: Value(
-            x.type(), x.value() != y.value()
+            Type.BOOL, x.value() != y.value()
         )
     
 
@@ -280,11 +291,11 @@ var d;
 d = !true;
 print(d);
 var foo;
-foo == 3;
+foo = 3;
 var bar;
-bar == 4;
-if (foo == 3 && bar == 4) { print("this should print!"); }
-
+bar = 4;
+print(foo == 3 && bar == 4);
+if (foo == 3 && bar == 5) { print("this should print!"); }
 }
 """
 interpreter.run(program_source)

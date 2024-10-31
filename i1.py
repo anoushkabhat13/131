@@ -60,15 +60,23 @@ class Interpreter(InterpreterBase):
 
     def __if(self, if_ast):
         condition = if_ast.get("condition")
-        super().output(condition)
         output = self.__eval_expr(condition).value()
-        super().output(output)
         if (output == True):
             self.__run_statements(if_ast.get("statements"))
         elif(output == False and if_ast.get("else_statements")!= None):
             self.__run_statements(if_ast.get("else_statements"))
-        elif(output == False):
-            super().output("HERE")
+ 
+    def __for(self, for_ast):
+
+        self.__assign(for_ast.get("init")) 
+        while (self.__eval_expr(for_ast.get("condition")).value() == True):
+            self.__run_statements(for_ast.get("statements"))
+            self.__assign(for_ast.get("update"))
+
+    def __return(self, return_ast):
+        return InterpreterBase.NIL_NODE;
+
+        
 
 
 
@@ -177,7 +185,6 @@ class Interpreter(InterpreterBase):
             return self.__call_func(expr_ast)
         #binary operation
         if expr_ast.elem_type in Interpreter.BIN_COMP_OPS:
-            super().output("BIN_COMP")
             return self.__eval_op(expr_ast)
         
         #unary operation
@@ -203,7 +210,7 @@ class Interpreter(InterpreterBase):
     def __eval_op(self, arith_ast):
         left_value_obj = self.__eval_expr(arith_ast.get("op1"))
         right_value_obj = self.__eval_expr(arith_ast.get("op2"))
-        super().output("HERE")
+        
         if left_value_obj.type() != right_value_obj.type():
             super().error(
                 ErrorType.TYPE_ERROR,
@@ -296,6 +303,19 @@ var bar;
 bar = 4;
 print(foo == 3 && bar == 4);
 if (foo == 3 && bar == 5) { print("this should print!"); }
+if (foo < 0) {
+  print(bar);
+} 
+var f;
+f = 5;
+f = f+1;
+print(f);
+var i;
+i = 1;
+return;
+for (i=0; i+3 < 5; i=i+1) {
+  print(i);
+}
 }
 """
 interpreter.run(program_source)

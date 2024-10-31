@@ -19,7 +19,7 @@ class Interpreter(InterpreterBase):
         self.__setup_ops()
 
     # run a program that's provided in a string
-    # usese the provided Parser found in brewparse.py to parse the program
+    # use the provided Parser found in brewparse.py to parse the program
     # into an abstract syntax tree (ast)
     def run(self, program):
         ast = parse_program(program)
@@ -58,26 +58,32 @@ class Interpreter(InterpreterBase):
             elif statement.elem_type == InterpreterBase.RETURN_NODE:
                 self.__return(statement)
 
+    #if statement
+    #add scoping to remove and add_scope when if and else statements are entered
     def __if(self, if_ast):
         condition = if_ast.get("condition")
         output = self.__eval_expr(condition).value()
         if (output == True):
+            self.env.add_scope()
             self.__run_statements(if_ast.get("statements"))
+            self.env.remove_scope()
         elif(output == False and if_ast.get("else_statements")!= None):
+            self.env.add_scope()
             self.__run_statements(if_ast.get("else_statements"))
+            self.env.remove_scope()
  
+    #need to fix for scoping
     def __for(self, for_ast):
-
         self.__assign(for_ast.get("init")) 
+        self.env.add_scope()
         while (self.__eval_expr(for_ast.get("condition")).value() == True):
             self.__run_statements(for_ast.get("statements"))
             self.__assign(for_ast.get("update"))
+        self.env.remove_scope()
+
 
     def __return(self, return_ast):
-        return InterpreterBase.NIL_NODE;
-
-        
-
+        return exit;
 
 
     def __call_func(self, call_node):
@@ -290,32 +296,14 @@ class Interpreter(InterpreterBase):
 
 interpreter = Interpreter()
 program_source = """func main(){
-var a;
-a = 5;
-var b;
-b = true;
-var d;
-d = !true;
-print(d);
-var foo;
-foo = 3;
-var bar;
-bar = 4;
-print(foo == 3 && bar == 4);
-if (foo == 3 && bar == 5) { print("this should print!"); }
-if (foo < 0) {
-  print(bar);
-} 
-var f;
-f = 5;
-f = f+1;
-print(f);
-var i;
-i = 1;
-return;
-for (i=0; i+3 < 5; i=i+1) {
-  print(i);
+var c;
+c = 10;
+if (c == 10) {
+c = "hi";  /* reassigning c from the outer-block */
+print(c);  /* prints "hi" */
 }
+print(c); /* prints “hi” */
 }
+
 """
 interpreter.run(program_source)

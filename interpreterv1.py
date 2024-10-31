@@ -5,7 +5,7 @@ from intbase import ErrorType
 class Interpreter(InterpreterBase):
     
     def __init__(self, console_output=True, inp=None, trace_output=False):
-         super().__init__(console_output, inp)   # call InterpreterBase's constructor
+        super().__init__(console_output, inp)   # call InterpreterBase's constructor
    
     def run(self, program):
         ast = parse_program(program)

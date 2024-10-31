@@ -22,12 +22,14 @@ class Value:
 
 
 def create_value(val):
+    InterpreterBase.output(val)
     if val == InterpreterBase.TRUE_DEF:
         return Value(Type.BOOL, True)
     elif val == InterpreterBase.FALSE_DEF:
         return Value(Type.BOOL, False)
     elif val == InterpreterBase.NIL_DEF:
-        return Value(Type.NIL)
+        InterpreterBase.output("print nil def")
+        return Value(Type.NIL, None)
     elif isinstance(val, str):
         return Value(Type.STRING, val)
     elif isinstance(val, int):

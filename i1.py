@@ -113,16 +113,15 @@ class Interpreter(InterpreterBase):
             
             # Evaluate the arguments
             
-      
+            self.env.add_scope()
             for variable, value in zip(variables, args):
                 super().output((variable.get("name"), value))
                 super().output(type(variable))
                 self.env.create(variable.get("name"),Value(Type.INT, 0))
                 self.env.set(variable.get("name"), value)
 
-
             self.__run_statements(func_def.get("statements"))
-
+            self.env.remove_scope()
  
 
             return 2
@@ -291,19 +290,23 @@ class Interpreter(InterpreterBase):
         self.op_to_lambda[Type.BOOL]["!="] = lambda x, y: Value(
             Type.BOOL, x.value() != y.value()
         )
+        #nil operation
+        self.op_to_lambda[Type.NIL] = {}
+        self.op_to_lambda[Type.NIL]["=="] = lambda x,y: Value(
+            Type.BOOL, x.value() == y.value()
+        )
+        self.op_to_lambda[Type.NIL]["!="] = lambda x,y: Value(
+            Type.BOOL, x.value() != y.value()
+        )
     
 
 
 interpreter = Interpreter()
-program_source = """func main(){
-var c;
-c = 10;
-if (c == 10) {
-c = "hi";  /* reassigning c from the outer-block */
-print(c);  /* prints "hi" */
+program_source = """
+func main() {
+   var val;
+   val = nil;
+   if (nil == val) { print("this should print!"); }
 }
-print(c); /* prints “hi” */
-}
-
 """
 interpreter.run(program_source)

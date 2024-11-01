@@ -41,8 +41,7 @@ class Interpreter(InterpreterBase):
     def __run_statements(self, statements):
         # all statements of a function are held in arg3 of the function AST node
         for statement in statements:
-            super().output(statement)
-            super().output(statement.elem_type)
+           
             if self.trace_output:
                 print(statement)
             if statement.elem_type == InterpreterBase.FCALL_NODE:
@@ -57,6 +56,7 @@ class Interpreter(InterpreterBase):
                 self.__for(statement)
             elif statement.elem_type == InterpreterBase.RETURN_NODE:
                 self.__return(statement)
+                exit;
 
     #if statement
     #add scoping to remove and add_scope when if and else statements are entered
@@ -64,26 +64,29 @@ class Interpreter(InterpreterBase):
         condition = if_ast.get("condition")
         output = self.__eval_expr(condition).value()
         if (output == True):
-            self.env.add_scope()
+            self.env.add_scope("if")
             self.__run_statements(if_ast.get("statements"))
-            self.env.remove_scope()
+            self.env.remove_scope("if")
         elif(output == False and if_ast.get("else_statements")!= None):
-            self.env.add_scope()
+            self.env.add_scope("if")
             self.__run_statements(if_ast.get("else_statements"))
-            self.env.remove_scope()
+            self.env.remove_scope("if")
  
     #need to fix for scoping
     def __for(self, for_ast):
         self.__assign(for_ast.get("init")) 
-        self.env.add_scope()
+        self.env.add_scope("for")
         while (self.__eval_expr(for_ast.get("condition")).value() == True):
             self.__run_statements(for_ast.get("statements"))
             self.__assign(for_ast.get("update"))
-        self.env.remove_scope()
+        self.env.remove_scope("for")
 
 
     def __return(self, return_ast):
-        return exit;
+        returnVal = None
+        if return_ast.get("expression") != InterpreterBase.NIL_NODE:
+            returnVal = self.__eval_expr(return_ast.get("expression"))
+        return returnVal;
 
 
     def __call_func(self, call_node):
@@ -102,10 +105,13 @@ class Interpreter(InterpreterBase):
             #basically we need to set each arg of call_node to func_def
             #evaluate args
             #length of args 
+
+            """
             super().output("func def: ")
             super().output(func_def)
             super().output("args: ")
             super().output(args)
+            """
 
             if len(variables) != len(args):
                 super().error(ErrorType.NAME_ERROR, f"Wrong number of inputs to {func_name}")
@@ -113,15 +119,17 @@ class Interpreter(InterpreterBase):
             
             # Evaluate the arguments
             
-            self.env.add_scope()
+            self.env.add_scope("func")
             for variable, value in zip(variables, args):
+                """
                 super().output((variable.get("name"), value))
                 super().output(type(variable))
-                self.env.create(variable.get("name"),Value(Type.INT, 0))
+                """
+                self.env.create(variable.get("name"), Value(Type.NIL, 0))
                 self.env.set(variable.get("name"), value)
 
             self.__run_statements(func_def.get("statements"))
-            self.env.remove_scope()
+            self.env.remove_scope("func")
  
 
             return 2
@@ -176,18 +184,31 @@ class Interpreter(InterpreterBase):
             return Value(Type.STRING, expr_ast.get("val"))
         #value case: BOOL
         if expr_ast.elem_type == InterpreterBase.BOOL_NODE:
-            super().output("BOOL NODE")
+
+            #super().output("BOOL NODE")
             return Value(Type.BOOL, expr_ast.get("val"))
+        #value case: NIL
+        if expr_ast.elem_type == InterpreterBase.NIL_NODE:
+            #super().output("GOING HERE")
+            #super().output("NIL NODE")
+            return Value(Type.NIL, expr_ast.get("val"))
         #var node case
         if expr_ast.elem_type == InterpreterBase.VAR_NODE:
             var_name = expr_ast.get("name")
+            #super().output("VAR NAME")
+            #super().output(var_name)
             val = self.env.get(var_name)
+            #super().output("VAL")
+            #super().output(val)
+
             if val is None:
                 super().error(ErrorType.NAME_ERROR, f"Variable {var_name} not found")
             return val
+        
         #function call case 
         if expr_ast.elem_type == InterpreterBase.FCALL_NODE:
             return self.__call_func(expr_ast)
+        
         #binary operation
         if expr_ast.elem_type in Interpreter.BIN_COMP_OPS:
             return self.__eval_op(expr_ast)
@@ -214,19 +235,28 @@ class Interpreter(InterpreterBase):
 
     def __eval_op(self, arith_ast):
         left_value_obj = self.__eval_expr(arith_ast.get("op1"))
+
         right_value_obj = self.__eval_expr(arith_ast.get("op2"))
         
-        if left_value_obj.type() != right_value_obj.type():
+        if (arith_ast.elem_type != ("==" or "!=")) and left_value_obj.type() != right_value_obj.type():
             super().error(
                 ErrorType.TYPE_ERROR,
                 f"Incompatible types for {arith_ast.elem_type} operation",
             )
-        if arith_ast.elem_type not in self.op_to_lambda[left_value_obj.type()]:
+
+        #super().output(left_value_obj.type())
+        #super().output(arith_ast.elem_type)
+
+        if arith_ast.elem_type not in (self.op_to_lambda) and arith_ast.elem_type not in (self.op_to_lambda[left_value_obj.type()]):
             super().error(
                 ErrorType.TYPE_ERROR,
                 f"Incompatible operator {arith_ast.elem_type} for type {left_value_obj.type()}",
             )
-        f = self.op_to_lambda[left_value_obj.type()][arith_ast.elem_type]
+        
+        if (arith_ast.elem_type == ("==" or "!=")):
+           f = self.op_to_lambda[arith_ast.elem_type]
+        else:
+            f = self.op_to_lambda[left_value_obj.type()][arith_ast.elem_type]
         return f(left_value_obj, right_value_obj)
 
     def __setup_ops(self):
@@ -257,12 +287,7 @@ class Interpreter(InterpreterBase):
         self.op_to_lambda[Type.INT]["<="] = lambda x, y: Value(
             Type.BOOL, x.value() <= y.value()
         )
-        self.op_to_lambda[Type.INT]["!="] = lambda x, y: Value(
-            Type.BOOL, x.value() != y.value()
-        )
-        self.op_to_lambda[Type.INT]["=="] = lambda x, y: Value(
-            Type.BOOL, x.value() == y.value()
-        )
+      
         
         # add other operators here later for int, string, bool, etc
         # string operations
@@ -270,12 +295,7 @@ class Interpreter(InterpreterBase):
         self.op_to_lambda[Type.STRING]["+"] = lambda x, y: Value(
             x.type(), x.value() + y.value()
         )
-        self.op_to_lambda[Type.STRING]["=="] = lambda x, y: Value(
-            Type.BOOL, x.value() == y.value()
-        )
-        self.op_to_lambda[Type.STRING]["!="] = lambda x, y: Value(
-            Type.BOOL, x.value() != y.value()
-        )
+       
         #bool operations
         self.op_to_lambda[Type.BOOL] = {}
         self.op_to_lambda[Type.BOOL]["||"] = lambda x, y: Value(
@@ -284,29 +304,33 @@ class Interpreter(InterpreterBase):
         self.op_to_lambda[Type.BOOL]["&&"] = lambda x, y: Value(
             Type.BOOL, x.value() and y.value()
         )
-        self.op_to_lambda[Type.BOOL]["=="] = lambda x, y: Value(
+
+        #"==" and "!=" should work for everything
+        self.op_to_lambda["=="] = lambda x, y: Value(
             Type.BOOL, x.value() == y.value()
         )
-        self.op_to_lambda[Type.BOOL]["!="] = lambda x, y: Value(
+        self.op_to_lambda["!="] = lambda x, y: Value(
             Type.BOOL, x.value() != y.value()
         )
-        #nil operation
-        self.op_to_lambda[Type.NIL] = {}
-        self.op_to_lambda[Type.NIL]["=="] = lambda x,y: Value(
-            Type.BOOL, x.value() == y.value()
-        )
-        self.op_to_lambda[Type.NIL]["!="] = lambda x,y: Value(
-            Type.BOOL, x.value() != y.value()
-        )
+       
     
 
 
 interpreter = Interpreter()
 program_source = """
-func main() {
-   var val;
-   val = nil;
-   if (nil == val) { print("this should print!"); }
+func foo() { 
+  var x;
+  x = true;
+  if (x) {
+    print(x);
+  }
 }
+
+func main() {
+  var y;
+  y = 0;
+  foo();
+}
+
 """
 interpreter.run(program_source)

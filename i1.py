@@ -41,7 +41,6 @@ class Interpreter(InterpreterBase):
     def __run_statements(self, statements):
         # all statements of a function are held in arg3 of the function AST node
         for statement in statements:
-           
             if self.trace_output:
                 print(statement)
             if statement.elem_type == InterpreterBase.FCALL_NODE:
@@ -55,8 +54,8 @@ class Interpreter(InterpreterBase):
             elif statement.elem_type == InterpreterBase.FOR_NODE:
                 self.__for(statement)
             elif statement.elem_type == InterpreterBase.RETURN_NODE:
-                self.__return(statement)
-                exit;
+                return self.__return(statement)
+                
 
     #if statement
     #add scoping to remove and add_scope when if and else statements are entered
@@ -83,10 +82,14 @@ class Interpreter(InterpreterBase):
 
 
     def __return(self, return_ast):
-        returnVal = None
-        if return_ast.get("expression") != InterpreterBase.NIL_NODE:
+        returnVal = Value(Type.NIL, None)
+        if return_ast.get("expression") is not None:
+            super().output("HERE")
+            super().output(return_ast.get("expression"))
             returnVal = self.__eval_expr(return_ast.get("expression"))
-        return returnVal;
+            super().output(returnVal)
+            super().output(returnVal.type())
+        return returnVal
 
 
     def __call_func(self, call_node):
@@ -177,6 +180,9 @@ class Interpreter(InterpreterBase):
   
     def __eval_expr(self, expr_ast):
         #value case: int
+        super().output("expr_type")
+        super().output(expr_ast)
+        
         if expr_ast.elem_type == InterpreterBase.INT_NODE:
             return Value(Type.INT, expr_ast.get("val"))
         #value case: string
@@ -184,14 +190,13 @@ class Interpreter(InterpreterBase):
             return Value(Type.STRING, expr_ast.get("val"))
         #value case: BOOL
         if expr_ast.elem_type == InterpreterBase.BOOL_NODE:
-
             #super().output("BOOL NODE")
             return Value(Type.BOOL, expr_ast.get("val"))
         #value case: NIL
         if expr_ast.elem_type == InterpreterBase.NIL_NODE:
             #super().output("GOING HERE")
             #super().output("NIL NODE")
-            return Value(Type.NIL, expr_ast.get("val"))
+            return Value(Type.NIL, None)
         #var node case
         if expr_ast.elem_type == InterpreterBase.VAR_NODE:
             var_name = expr_ast.get("name")
@@ -264,16 +269,16 @@ class Interpreter(InterpreterBase):
         # set up operations on integers
         self.op_to_lambda[Type.INT] = {}
         self.op_to_lambda[Type.INT]["+"] = lambda x, y: Value(
-            x.type(), x.value() + y.value()
+            Type.INT, x.value() + y.value()
         )
         self.op_to_lambda[Type.INT]["-"] = lambda x, y: Value(
-            x.type(), x.value() - y.value()
+            Type.INT, x.value() - y.value()
         )
         self.op_to_lambda[Type.INT]["*"] = lambda x, y: Value(
-            x.type(), x.value() * y.value()
+            Type.INT, x.value() * y.value()
         )
         self.op_to_lambda[Type.INT]["/"] = lambda x, y: Value(
-            x.type(), x.value() // y.value()
+            Type.INT, x.value() // y.value()
         )
         self.op_to_lambda[Type.INT][">"] = lambda x, y: Value(
             Type.BOOL, x.value() > y.value()
@@ -293,7 +298,7 @@ class Interpreter(InterpreterBase):
         # string operations
         self.op_to_lambda[Type.STRING] = {}
         self.op_to_lambda[Type.STRING]["+"] = lambda x, y: Value(
-            x.type(), x.value() + y.value()
+            Type.STRING, x.value() + y.value()
         )
        
         #bool operations
@@ -318,18 +323,22 @@ class Interpreter(InterpreterBase):
 
 interpreter = Interpreter()
 program_source = """
-func foo() { 
-  var x;
-  x = true;
-  if (x) {
+func foo(x) {
+  if (x < 0) {
     print(x);
+    return -x;
+    print("this will not print");
   }
+  print("this will not print either");
+  print (5*x);
+  return 5*x;
 }
 
 func main() {
-  var y;
-  y = 0;
-  foo();
+  var x;
+  x = -1;
+  print(5*x);
+  print("the positive value is ", foo(-1));
 }
 
 """

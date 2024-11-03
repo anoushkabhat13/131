@@ -24,14 +24,19 @@ class Interpreter(InterpreterBase):
     def run(self, program):
         ast = parse_program(program)
         self.__set_up_function_table(ast)
-        main_func = self.__get_func_by_name("main")
+        main_func = self.__get_func_by_name("main")[0]
         self.env = EnvironmentManager()
         self.__run_statements(main_func.get("statements"))
 
     def __set_up_function_table(self, ast):
         self.func_name_to_ast = {}
         for func_def in ast.get("functions"):
-            self.func_name_to_ast[func_def.get("name")] = func_def
+            func_name = func_def.get("name")
+             # Initialize the dictionary if the function name is not in the table
+            if func_name not in self.func_name_to_ast:
+                 self.func_name_to_ast[func_name] = {}
+
+            self.func_name_to_ast[func_name][len(func_def.get("args"))] = func_def
 
     def __get_func_by_name(self, name):
         if name not in self.func_name_to_ast:
@@ -59,7 +64,7 @@ class Interpreter(InterpreterBase):
                     return return_val
             elif statement.elem_type == InterpreterBase.RETURN_NODE:
                 return self.__return(statement)
-            
+        return None
             
             
                 
@@ -70,14 +75,18 @@ class Interpreter(InterpreterBase):
         condition = if_ast.get("condition")
         result = None
         output = self.__eval_expr(condition).value()
-
+        if not isinstance(output, bool):
+            super().error(ErrorType.TYPE_ERROR, "Condition must evaluate to bool")
+       
         if (output == True):
             self.env.add_scope("if")
-            super().output("HERE0")
-            super().output("HERE0I")
+            #super().output("HERE0")
+            #super().output("HERE0I")
             result = self.__run_statements(if_ast.get("statements"))
-            super().output("HERE0I")
-            super().output(result)
+            print("BAHAHA")
+            print(result)
+            #super().output("HERE0I")
+            #super().output(result)
             self.env.remove_scope("if")
         elif(output == False and if_ast.get("else_statements")!= None):
             self.env.add_scope("if")
@@ -90,23 +99,24 @@ class Interpreter(InterpreterBase):
         self.__assign(for_ast.get("init")) 
         self.env.add_scope("for")
         result = None
+        
+        output = self.__eval_expr(for_ast.get("condition")).value() 
+        if not isinstance(output, bool):
+            super().error(ErrorType.TYPE_ERROR, "Condition must evaluate to bool")
+
         while (self.__eval_expr(for_ast.get("condition")).value() == True):
             result = self.__run_statements(for_ast.get("statements"))
             self.__assign(for_ast.get("update"))
         self.env.remove_scope("for")
+
         return result
 
 
     def __return(self, return_ast):
-        super().output(return_ast)
-        returnVal = Value(Type.NIL, None)
         if return_ast.get("expression") is not None:
-            super().output("HERE")
-            super().output(return_ast.get("expression"))
-            returnVal = self.__eval_expr(return_ast.get("expression"))
-            super().output(returnVal)
-            super().output(returnVal.type())
-        return returnVal
+            return self.__eval_expr(return_ast.get("expression"))
+        return Value(Type.NIL, None)
+       
 
 
     def __call_func(self, call_node):
@@ -115,34 +125,37 @@ class Interpreter(InterpreterBase):
             return self.__call_print(call_node)
         if func_name == "inputi":
             return self.__call_input(call_node)
+        if func_name == "inputs":
+            return self.__call_inputs(call_node)
         
         # add code here later to call other functions
         if func_name in self.func_name_to_ast:
-            func_def = self.func_name_to_ast[func_name]
-            variables = func_def.get('args') # variables from func definition
-            #args = call_node.get('args')    #args/params passed in
             args = [self.__eval_expr(arg) for arg in call_node.get('args')]
-            #basically we need to set each arg of call_node to func_def
-            #evaluate args
-            #length of args 
-            if len(variables) != len(args):
-                super().error(ErrorType.NAME_ERROR, f"Wrong number of inputs to {func_name}")
-            # Evaluate the arguments
-            self.env.add_scope("func")
-            for variable, value in zip(variables, args):
-                self.env.create(variable.get("name"), Value(Type.NIL, None))
-                self.env.set(variable.get("name"), value)
+            num_args = len(args)
+            if num_args in self.func_name_to_ast[func_name]:
+                func_def = self.func_name_to_ast[func_name][num_args]
+                variables = func_def.get('args') # variables from func definition
+                #args = call_node.get('args')    #args/params passed in
+                
+                #basically we need to set each arg of call_node to func_def
+                #evaluate args
+                #length of args 
+                
+                # Evaluate the arguments
+                self.env.add_scope("func")
+                for variable, value in zip(variables, args):
+                    self.env.create(variable.get("name"), Value(Type.NIL, None))
+                    self.env.set(variable.get("name"), value)
 
-            result = self.__run_statements(func_def.get("statements"))
-            super().output(result)
-            self.env.remove_scope("func")
-            
-            if result is not None:  # If there's a return value, pass it back
-                return result
-            return Value(Type.NIL, None)
-            
-
-        super().error(ErrorType.NAME_ERROR, f"Function {func_name} not found")
+                result = self.__run_statements(func_def.get("statements"))
+                #super().output(result)
+                self.env.remove_scope("func")
+                
+                if result is not None:  # If there's a return value, pass it back
+                    return result
+                return Value(Type.NIL, None)
+            #super().error(ErrorType.NAME_ERROR, f"Wrong number of inputs to {func_name}")
+        #super().error(ErrorType.NAME_ERROR, f"Function {func_name} not found")
 
     def __call_print(self, call_ast):
         output = ""
@@ -165,6 +178,21 @@ class Interpreter(InterpreterBase):
             return Value(Type.INT, int(inp))
         # we can support inputs here later
 
+    def __call_inputs(self, call_ast):
+        args = call_ast.get("args")
+        if args is not None and len(args) == 1:
+            result = self.__eval_expr(args[0])
+            super().output(get_printable(result))
+        elif args is not None and len(args) > 1:
+            super().error(
+                ErrorType.NAME_ERROR, "No inputs() function that takes > 1 parameter"
+            )
+        inp = super().get_input()
+        if call_ast.get("name") == "inputs":
+            return Value(Type.STRING, str(inp))
+        # we can support inputs here later
+
+    
     def __assign(self, assign_ast):
         var_name = assign_ast.get("name")
         value_obj = self.__eval_expr(assign_ast.get("expression"))
@@ -184,13 +212,14 @@ class Interpreter(InterpreterBase):
   
     def __eval_expr(self, expr_ast):
         #value case: int
-        super().output("expr_type")
-        super().output(expr_ast)
+        #super().output("expr_type")
+        #super().output(expr_ast)
         
         if expr_ast.elem_type == InterpreterBase.INT_NODE:
             return Value(Type.INT, expr_ast.get("val"))
         #value case: string
         if expr_ast.elem_type == InterpreterBase.STRING_NODE:
+            super().output("HAAHAAHHHAHHAH")
             return Value(Type.STRING, expr_ast.get("val"))
         #value case: BOOL
         if expr_ast.elem_type == InterpreterBase.BOOL_NODE:
@@ -204,8 +233,6 @@ class Interpreter(InterpreterBase):
         #var node case
         if expr_ast.elem_type == InterpreterBase.VAR_NODE:
             var_name = expr_ast.get("name")
-            #super().output("VAR NAME")
-            #super().output(var_name)
             val = self.env.get(var_name)
             #super().output("VAL")
             #super().output(val)
@@ -253,16 +280,13 @@ class Interpreter(InterpreterBase):
                 f"Incompatible types for {arith_ast.elem_type} operation",
             )
 
-        #super().output(left_value_obj.type())
-        #super().output(arith_ast.elem_type)
-
         if arith_ast.elem_type not in (self.op_to_lambda) and arith_ast.elem_type not in (self.op_to_lambda[left_value_obj.type()]):
             super().error(
                 ErrorType.TYPE_ERROR,
                 f"Incompatible operator {arith_ast.elem_type} for type {left_value_obj.type()}",
             )
         
-        if (arith_ast.elem_type == ("==" or "!=")):
+        if arith_ast.elem_type == "=="  or arith_ast.elem_type == "!=" :
            f = self.op_to_lambda[arith_ast.elem_type]
         else:
             f = self.op_to_lambda[left_value_obj.type()][arith_ast.elem_type]
@@ -326,18 +350,40 @@ class Interpreter(InterpreterBase):
 
 
 interpreter = Interpreter()
+
+
 program_source = """
-func foo(x) {
-  return -4;
-  print("5");
+func foo(a) {
+  if (a != 1) {
+    if (a != 2) {
+      var i;
+      for (i = 0; i < 15; i = i + 1) {
+        if (i == a) {
+          return "oh";
+        }
+      }
+    }
+  }
+}
+
+func loop1() {
+  return loop2();
+}
+func loop2() {
+  return loop3();
+}
+
+func loop3() {
+  return 5;
 }
 
 func main() {
-  var abs;
-  abs = 5;
-  print("the positive value is ", foo(-1));
-  print(abs);
+  var a;
+  a = 10;
+  
+  print(foo(a));
+  print(loop1());
 }
-
 """
 interpreter.run(program_source)
+

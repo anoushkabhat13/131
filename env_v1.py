@@ -6,6 +6,7 @@ class EnvironmentManager:
     def __init__(self):
         self.environment = [{}] #make this into a list of environments
         self.temp_env = [{}]
+        self.in_func = False
 
     # Gets the data associated a variable name
     def get(self, symbol):
@@ -35,16 +36,21 @@ class EnvironmentManager:
         if scope_type == "func":
             #save the current environment 
             #make the environment empty
-            self.env2 = self.environment 
+            self.temp_env = self.environment 
             self.environment = [{}]
+            self.in_func = True
         else:
             #if or for just append
             self.environment.append({})
     
     def remove_scope(self, scope_type):
         if scope_type == "func":
-            self.environment = self.env2
+            self.environment = self.temp_env
+            self.in_func = False
         else:
             self.environment.pop()
         #else error     if (len(self.environment) > 1):
+    
+    def not_in_main(self):
+        return self.in_func
     

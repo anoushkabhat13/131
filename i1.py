@@ -50,38 +50,55 @@ class Interpreter(InterpreterBase):
             elif statement.elem_type == InterpreterBase.VAR_DEF_NODE:
                 self.__var_def(statement)
             elif statement.elem_type == InterpreterBase.IF_NODE:
-                self.__if(statement)
+                return_val = self.__if(statement)
+                if return_val is not None:
+                    return return_val
             elif statement.elem_type == InterpreterBase.FOR_NODE:
-                self.__for(statement)
+                return_val = self.__for(statement)
+                if return_val is not None:
+                    return return_val
             elif statement.elem_type == InterpreterBase.RETURN_NODE:
                 return self.__return(statement)
+            
+            
+            
                 
 
     #if statement
     #add scoping to remove and add_scope when if and else statements are entered
     def __if(self, if_ast):
         condition = if_ast.get("condition")
+        result = None
         output = self.__eval_expr(condition).value()
+
         if (output == True):
             self.env.add_scope("if")
-            self.__run_statements(if_ast.get("statements"))
+            super().output("HERE0")
+            super().output("HERE0I")
+            result = self.__run_statements(if_ast.get("statements"))
+            super().output("HERE0I")
+            super().output(result)
             self.env.remove_scope("if")
         elif(output == False and if_ast.get("else_statements")!= None):
             self.env.add_scope("if")
-            self.__run_statements(if_ast.get("else_statements"))
+            result = self.__run_statements(if_ast.get("else_statements"))
             self.env.remove_scope("if")
+        return result
  
     #need to fix for scoping
     def __for(self, for_ast):
         self.__assign(for_ast.get("init")) 
         self.env.add_scope("for")
+        result = None
         while (self.__eval_expr(for_ast.get("condition")).value() == True):
-            self.__run_statements(for_ast.get("statements"))
+            result = self.__run_statements(for_ast.get("statements"))
             self.__assign(for_ast.get("update"))
         self.env.remove_scope("for")
+        return result
 
 
     def __return(self, return_ast):
+        super().output(return_ast)
         returnVal = Value(Type.NIL, None)
         if return_ast.get("expression") is not None:
             super().output("HERE")
@@ -108,35 +125,22 @@ class Interpreter(InterpreterBase):
             #basically we need to set each arg of call_node to func_def
             #evaluate args
             #length of args 
-
-            """
-            super().output("func def: ")
-            super().output(func_def)
-            super().output("args: ")
-            super().output(args)
-            """
-
             if len(variables) != len(args):
                 super().error(ErrorType.NAME_ERROR, f"Wrong number of inputs to {func_name}")
-            
-            
             # Evaluate the arguments
-            
             self.env.add_scope("func")
             for variable, value in zip(variables, args):
-                """
-                super().output((variable.get("name"), value))
-                super().output(type(variable))
-                """
-                self.env.create(variable.get("name"), Value(Type.NIL, 0))
+                self.env.create(variable.get("name"), Value(Type.NIL, None))
                 self.env.set(variable.get("name"), value)
 
-            self.__run_statements(func_def.get("statements"))
+            result = self.__run_statements(func_def.get("statements"))
+            super().output(result)
             self.env.remove_scope("func")
- 
-
-            return 2
-            evaluated_args = [self.__eval_expr(arg) for arg in args]  # Evaluate the arguments
+            
+            if result is not None:  # If there's a return value, pass it back
+                return result
+            return Value(Type.NIL, None)
+            
 
         super().error(ErrorType.NAME_ERROR, f"Function {func_name} not found")
 
@@ -324,21 +328,15 @@ class Interpreter(InterpreterBase):
 interpreter = Interpreter()
 program_source = """
 func foo(x) {
-  if (x < 0) {
-    print(x);
-    return -x;
-    print("this will not print");
-  }
-  print("this will not print either");
-  print (5*x);
-  return 5*x;
+  return -4;
+  print("5");
 }
 
 func main() {
-  var x;
-  x = -1;
-  print(5*x);
+  var abs;
+  abs = 5;
   print("the positive value is ", foo(-1));
+  print(abs);
 }
 
 """

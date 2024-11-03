@@ -286,6 +286,11 @@ class Interpreter(InterpreterBase):
                 f"Incompatible operator {arith_ast.elem_type} for type {left_value_obj.type()}",
             )
         
+        if left_value_obj.type() == InterpreterBase.BOOL_NODE and right_value_obj.type() == InterpreterBase.INT_NODE:
+            return Value(Type.BOOL, False)
+        if right_value_obj.type() == InterpreterBase.BOOL_NODE and left_value_obj.type() == InterpreterBase.INT_NODE:
+            return Value(Type.BOOL, False)
+        
         if arith_ast.elem_type == "=="  or arith_ast.elem_type == "!=" :
            f = self.op_to_lambda[arith_ast.elem_type]
         else:

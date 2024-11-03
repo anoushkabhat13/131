@@ -94,8 +94,9 @@ class Interpreter(InterpreterBase):
  
     #need to fix for scoping
     def __for(self, for_ast):
-        self.__assign(for_ast.get("init")) 
+
         self.env.add_scope("for")
+        self.__assign(for_ast.get("init")) 
         result = None
 
         output = self.__eval_expr(for_ast.get("condition")).value() 
@@ -103,10 +104,12 @@ class Interpreter(InterpreterBase):
             super().error(ErrorType.TYPE_ERROR, "Condition must evaluate to bool")
 
         while (self.__eval_expr(for_ast.get("condition")).value() == True):
+            self.env.add_scope("loop_body")
             result = self.__run_statements(for_ast.get("statements"))
             if result is not None:  # If there is a return value, propagate it
                 break
             self.__assign(for_ast.get("update"))
+            self.env.remove_scope("loop_body")
         self.env.remove_scope("for")
 
         return result
@@ -210,6 +213,7 @@ class Interpreter(InterpreterBase):
     def __var_def(self, var_ast):
         var_name = var_ast.get("name")
         if not self.env.create(var_name, Value(Type.INT, 0)):
+            print(f"Attempting to define variable: {var_name}")  # Print the variable name
             super().error(
                 ErrorType.NAME_ERROR, f"Duplicate definition for variable {var_name}"
             )
@@ -278,17 +282,21 @@ class Interpreter(InterpreterBase):
 
         right_value_obj = self.__eval_expr(arith_ast.get("op2"))
         
-        if (arith_ast.elem_type != ("==" or "!=")) and left_value_obj.type() != right_value_obj.type():
+        if arith_ast.elem_type not in ("==", "!=") and left_value_obj.type() != right_value_obj.type():
             super().error(
                 ErrorType.TYPE_ERROR,
                 f"Incompatible types for {arith_ast.elem_type} operation",
             )
 
-        if arith_ast.elem_type not in (self.op_to_lambda) and arith_ast.elem_type not in (self.op_to_lambda[left_value_obj.type()]):
+        if (arith_ast.elem_type not in (self.op_to_lambda)) and (arith_ast.elem_type not in (self.op_to_lambda[left_value_obj.type()])):
             super().error(
                 ErrorType.TYPE_ERROR,
                 f"Incompatible operator {arith_ast.elem_type} for type {left_value_obj.type()}",
             )
+        if left_value_obj.type() == InterpreterBase.BOOL_NODE and right_value_obj.type() == InterpreterBase.INT_NODE:
+            return Value(Type.BOOL, False)
+        if right_value_obj.type() == InterpreterBase.BOOL_NODE and left_value_obj.type() == InterpreterBase.INT_NODE:
+            return Value(Type.BOOL, False)
         
         if arith_ast.elem_type == "=="  or arith_ast.elem_type == "!=" :
            f = self.op_to_lambda[arith_ast.elem_type]
@@ -356,36 +364,9 @@ interpreter = Interpreter()
 
 
 program_source = """
-func foo(a) {
-  if (a != 1) {
-    if (a != 2) {
-      var i;
-      for (i = 0; i < 15; i = i + 1) {
-        if (i == a) {
-          return "oh";
-        }
-      }
-    }
-  }
-}
-
-func loop1() {
-  return loop2();
-}
-func loop2() {
-  return loop3();
-}
-
-func loop3() {
-  return 5;
-}
-
-func main() {
-  var a;
-  a = 10;
-  
-  print(foo(a));
-  print(loop1());
+func main () {
+  print("1" != 1);
+  print(true != 1);
 }
 """
 interpreter.run(program_source)

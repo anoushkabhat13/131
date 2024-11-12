@@ -106,10 +106,11 @@ class Interpreter(InterpreterBase):
         while (self.__eval_expr(for_ast.get("condition")).value() == True):
             self.env.add_scope("loop_body")
             result = self.__run_statements(for_ast.get("statements"))
+            self.env.remove_scope("loop_body")
             if result is not None:  # If there is a return value, propagate it
                 break
             self.__assign(for_ast.get("update"))
-            self.env.remove_scope("loop_body")
+           
         self.env.remove_scope("for")
 
         return result
@@ -171,6 +172,7 @@ class Interpreter(InterpreterBase):
             result = self.__eval_expr(arg)  # result is a Value object
             output = output + get_printable(result)
         super().output(output)
+        return Value(Type.NIL, None)
 
     def __call_input(self, call_ast):
         args = call_ast.get("args")
@@ -204,8 +206,9 @@ class Interpreter(InterpreterBase):
     def __assign(self, assign_ast):
         var_name = assign_ast.get("name")
         value_obj = self.__eval_expr(assign_ast.get("expression"))
-
-        if not self.env.set(var_name, value_obj):
+        if self.env.get(var_name) is not None:
+            self.env.set(var_name, value_obj)
+        else:
             super().error(
                 ErrorType.NAME_ERROR, f"Undefined variable {var_name} in assignment"
             )
@@ -293,10 +296,15 @@ class Interpreter(InterpreterBase):
                 ErrorType.TYPE_ERROR,
                 f"Incompatible operator {arith_ast.elem_type} for type {left_value_obj.type()}",
             )
-        if left_value_obj.type() == InterpreterBase.BOOL_NODE and right_value_obj.type() == InterpreterBase.INT_NODE:
+        if left_value_obj.type() == InterpreterBase.BOOL_NODE and right_value_obj.type() == InterpreterBase.INT_NODE and arith_ast.elem_type == "==":
             return Value(Type.BOOL, False)
-        if right_value_obj.type() == InterpreterBase.BOOL_NODE and left_value_obj.type() == InterpreterBase.INT_NODE:
+        if right_value_obj.type() == InterpreterBase.BOOL_NODE and left_value_obj.type() == InterpreterBase.INT_NODE and arith_ast.elem_type == "==":
             return Value(Type.BOOL, False)
+        
+        if left_value_obj.type() == InterpreterBase.BOOL_NODE and right_value_obj.type() == InterpreterBase.INT_NODE and arith_ast.elem_type == "!=":
+            return Value(Type.BOOL, True)
+        if right_value_obj.type() == InterpreterBase.BOOL_NODE and left_value_obj.type() == InterpreterBase.INT_NODE and arith_ast.elem_type == "!=":
+            return Value(Type.BOOL, True)
         
         if arith_ast.elem_type == "=="  or arith_ast.elem_type == "!=" :
            f = self.op_to_lambda[arith_ast.elem_type]
@@ -352,10 +360,10 @@ class Interpreter(InterpreterBase):
 
         #"==" and "!=" should work for everything
         self.op_to_lambda["=="] = lambda x, y: Value(
-            Type.BOOL, x.value() == y.value()
+            Type.BOOL, (x.value() == y.value())
         )
         self.op_to_lambda["!="] = lambda x, y: Value(
-            Type.BOOL, x.value() != y.value()
+            Type.BOOL, (x.value() != y.value())
         )
        
     
@@ -364,10 +372,13 @@ interpreter = Interpreter()
 
 
 program_source = """
-func main () {
+
+
+func main() {
   print("1" != 1);
   print(true != 1);
 }
+
 """
 interpreter.run(program_source)
 

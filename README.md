@@ -1,6 +1,4 @@
-# CS 131 Fall 2024 Project 1
+# CS 131 Fall 2024 Project 2
 
-No  know bugs, all good!!
+No  know bugs, but not passing two test cases with the recursive catalan and recursive solution. I believe there may be an error due to scoping, specifically my recursive approach.
 
-# Project walkthrough: 
-In this project, I mainly followed the pseudocode in the spec, and used the AST provided. Some issues I ran into were getting mixed up with .elem_type and .name as well as understanding the structure of the AST. Once I understood the structure, it was a lot smoother to code the whole thing. 

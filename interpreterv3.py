@@ -32,9 +32,21 @@ class Interpreter(InterpreterBase):
     # into an abstract syntax tree (ast)
     def run(self, program):
         ast = parse_program(program)
+        print(ast)
+        #add a struct table
+        self.__set_up_struct_table(ast)
         self.__set_up_function_table(ast)
         self.env = EnvironmentManager()
         self.__call_func_aux("main", [])
+
+    #STRUCT DICT WHICH ONLY STORES NAMES OF STRUCTS
+    #Need to also store the variables inside the struct 
+    def __set_up_struct_table(self,ast):
+        self.structs = {}
+        for struct_def in ast.get("structs"):
+            struct_name = struct_def.get("name")
+            if struct_name not in self.structs:
+                self.structs[struct_name] = struct_def
 
     def __set_up_function_table(self, ast):
         self.func_name_to_ast = {}
@@ -222,6 +234,9 @@ class Interpreter(InterpreterBase):
             value = create_value(0)
         elif var_type  == Interpreter.STRING_NODE:
             value = create_value("")
+        #EDITED THIS
+        elif var_type in self.structs:
+            value = create_value(InterpreterBase.NIL_DEF)
         else:
             super().error(
                 ErrorType.NAME_ERROR, f"All variable definitions must now specify an explicit type for the variable"
@@ -429,30 +444,16 @@ interpreter = Interpreter()
 
 
 program_source = """
-
-func bar() : int {
-  return;  /* no return value specified - returns 0 */
-}
-
-func bletch(a:bool) : bool {
-  print("hi");
-  print(a);
-  return 0;
-  /* no explicit return; bletch must return default bool of false */
+struct dog {
+  name: string;
+  vaccinated: bool;  
 }
 
 func main() : void {
-   var val: int;
-   val = bar();
-   var x : bool;
-   x = 5;
-   print(val);  /* prints 0 */
-   print(x);
-   print(bletch(0)); /* prints false */
+  var d: dog;    /* d is an object reference whose value is nil */
+
+  print (d);  /* prints nil, because d was initialized to nil */
 }
-
-
-
 """
 interpreter.run(program_source)
 

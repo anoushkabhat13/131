@@ -45,8 +45,40 @@ class Interpreter(InterpreterBase):
         self.structs = {}
         for struct_def in ast.get("structs"):
             struct_name = struct_def.get("name")
+            struct_fields = struct_def.get("fields")
             if struct_name not in self.structs:
-                self.structs[struct_name] = struct_def
+                self.structs[struct_name] = self.__create_class(struct_name, struct_fields)
+
+    def __create_class(self, struct_name, struct_fields):
+        def __init__(self, **kwargs):
+            for field in struct_fields:
+                
+                var_name = field.get("name")
+                var_type = field.get("var_type")  
+                
+                if var_type == Interpreter.BOOL_NODE:
+                    obj_value = create_value(InterpreterBase.FALSE_DEF)
+                elif var_type == Interpreter.INT_NODE:
+                    obj_value = create_value(0)
+                elif var_type  == Interpreter.STRING_NODE:
+                    obj_value = create_value("")
+                #EDITED THIS
+                elif var_type in self.structs:
+                    #create struct 
+                    #set to nil initially
+                    obj_value = create_value(InterpreterBase.NIL_DEF)
+                
+                setattr(self, var_name, obj_value)
+                
+
+        def get_type(self):
+            return struct_name
+        
+        # Create a dictionary of methods (including __init__) for the new class
+        methods = {'__init__': __init__,'type': get_type}
+
+        # Define the new class using type()
+        return type(struct_name, (object,), methods)
 
     def __set_up_function_table(self, ast):
         self.func_name_to_ast = {}
@@ -72,7 +104,7 @@ class Interpreter(InterpreterBase):
         self.env.push_block()
         for statement in statements:
             #remove after
-            print(statement)
+            #print(statement)
             if self.trace_output:
                 print(statement)
             status, return_val = self.__run_statement(statement)
@@ -125,10 +157,7 @@ class Interpreter(InterpreterBase):
         # first evaluate all of the actual parameters and associate them with the formal parameter names
         args = {}
         for formal_ast, actual_ast in zip(formal_args, actual_args):
-            
-
             result = copy.copy(self.__eval_expr(actual_ast))
-
             arg_name = formal_ast.get("name")
             arg_type = formal_ast.get("var_type")
             
@@ -159,8 +188,8 @@ class Interpreter(InterpreterBase):
 
         func_return_type = func_ast.get("return_type")
         
-        print("RETURN TYPE OF FUNC: " + func_return_type)
-        print("RETURN TYPE OF RETURN EXPR: " + return_val.type())
+        #print("RETURN TYPE OF FUNC: " + func_return_type)
+        #print("RETURN TYPE OF RETURN EXPR: " + return_val.type())
  
         #int function with nil return type
         if return_val.type() == "nil" and func_return_type == "int":
@@ -216,8 +245,11 @@ class Interpreter(InterpreterBase):
             return Value(Type.STRING, inp)
 
     def __assign(self, assign_ast):
+        
+
         var_name = assign_ast.get("name")
         value_obj = self.__eval_expr(assign_ast.get("expression"))
+        
         if not self.env.set(var_name, value_obj):
             super().error(
                 ErrorType.NAME_ERROR, f"Undefined variable {var_name} in assignment"
@@ -236,6 +268,8 @@ class Interpreter(InterpreterBase):
             value = create_value("")
         #EDITED THIS
         elif var_type in self.structs:
+            #create struct 
+            #set to nil initially
             value = create_value(InterpreterBase.NIL_DEF)
         else:
             super().error(
@@ -249,6 +283,15 @@ class Interpreter(InterpreterBase):
         
 
     def __eval_expr(self, expr_ast):
+
+        var_name = expr_ast.get("name")
+
+        
+        if expr_ast.elem_type == InterpreterBase.NEW_NODE:
+            struct_name = expr_ast.get("var_type")
+            return self.structs[struct_name]()
+    
+        
         if expr_ast.elem_type == InterpreterBase.NIL_NODE:
             return Interpreter.NIL_VALUE
         if expr_ast.elem_type == InterpreterBase.INT_NODE:
@@ -258,11 +301,22 @@ class Interpreter(InterpreterBase):
         if expr_ast.elem_type == InterpreterBase.BOOL_NODE:
             return Value(Type.BOOL, expr_ast.get("val"))
         if expr_ast.elem_type == InterpreterBase.VAR_NODE:
+            
+
             var_name = expr_ast.get("name")
-            val = self.env.get(var_name)
-            if val is None:
-                super().error(ErrorType.NAME_ERROR, f"Variable {var_name} not found")
-            return val
+            if "." in var_name:
+                struct_name, field_name = var_name.split('.')
+                #print(struct_name)
+                #print(field_name)
+                struct_obj = self.env.get(struct_name)
+
+                return getattr(struct_obj, field_name)
+                
+            else:
+                val = self.env.get(var_name)
+                if val is None:
+                    super().error(ErrorType.NAME_ERROR, f"Variable {var_name} not found")
+                return val
         if expr_ast.elem_type == InterpreterBase.FCALL_NODE:
             return self.__call_func(expr_ast)
         if expr_ast.elem_type in Interpreter.BIN_OPS:
@@ -277,6 +331,21 @@ class Interpreter(InterpreterBase):
         right_value_obj = self.__eval_expr(arith_ast.get("op2"))
 
         #if left_value_obj.type() == "BOOL" and right_value_obj.type() == "INT":
+
+        #bool return set to int coercion
+        if left_value_obj.type() == "bool" and right_value_obj.type() == "int":
+            if right_value_obj.value() == 0:
+                right_value_obj = Value(Type.BOOL, False)
+            else:
+                right_value_obj = Value(Type.BOOL, True)
+
+        #bool return set to int coercion
+        elif left_value_obj.type() == "int" and right_value_obj.type() == "bool":
+            if left_value_obj.value() == 0:
+                left_value_obj = Value(Type.BOOL, False)
+            else:
+                left_value_obj = Value(Type.BOOL, True)
+
 
         if not self.__compatible_types(
             arith_ast.elem_type, left_value_obj, right_value_obj
@@ -444,16 +513,21 @@ interpreter = Interpreter()
 
 
 program_source = """
-struct dog {
-  name: string;
-  vaccinated: bool;  
+struct flea {
+  age: int;
+  infected : bool;
 }
 
 func main() : void {
-  var d: dog;    /* d is an object reference whose value is nil */
+  var a: flea;    
+  a = new flea;
+  print(a.age); /* prints 0 */
+  print(a.infected);
+  a.age  = 2;
 
-  print (d);  /* prints nil, because d was initialized to nil */
+
 }
+
 """
 interpreter.run(program_source)
 

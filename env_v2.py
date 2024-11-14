@@ -4,6 +4,7 @@ from intbase import InterpreterBase, ErrorType
 from type_valuev2 import Type, Value, create_value, get_printable
 
 
+
 class EnvironmentManager:
     def __init__(self):
         self.environment = []
@@ -22,12 +23,19 @@ class EnvironmentManager:
         for env in reversed(cur_func_env):
             if symbol in env:
                 #coercing bool to int
+                #print(symbol)
+                #print(env[symbol].type())
+                #print(value)
+                #print(value.type())
                 if ((env[symbol].type() == "bool") and (value.type() == "int")):
                     if value.value() == 0:
                         env[symbol] = Value(Type.BOOL, False)
                     else:
                         env[symbol] = Value(Type.BOOL, True)
-
+                
+                elif (env[symbol].type() == "nil") and (value.type()!="int") and (value.type()!="bool") and (value.type()!="String"):
+                    env[symbol] = value
+                
                 elif env[symbol].type() != value.type():
                     InterpreterBase().error(
                     ErrorType.TYPE_ERROR,

@@ -32,17 +32,22 @@ class Interpreter(InterpreterBase):
     # into an abstract syntax tree (ast)
     def run(self, program):
         ast = parse_program(program)
-       
+        self.structs = {}
+        self.func_name_to_ast = {}
+        self.type_of_struct_dict = {}
         #add a struct table
         self.__set_up_struct_table(ast)
         self.__set_up_function_table(ast)
-        self.env = EnvironmentManager()
+        self.env = EnvironmentManager(interpreter)
         self.__call_func_aux("main", [])
+        self.structs = {}
+        self.func_name_to_ast = {}
+        self.type_of_struct_dict = {}
 
     #STRUCT DICT WHICH ONLY STORES NAMES OF STRUCTS
     #Need to also store the variables inside the struct 
     def __set_up_struct_table(self,ast):
-        self.structs = {}
+        
         for struct_def in ast.get("structs"):
             struct_name = struct_def.get("name")
             struct_fields = struct_def.get("fields")
@@ -79,17 +84,22 @@ class Interpreter(InterpreterBase):
 
     def __set_up_function_table(self, ast):
 
-        self.func_name_to_ast = {}
+        
         for func_def in ast.get("functions"):
             func_name = func_def.get("name")
             num_params = len(func_def.get("args"))
+            
             for param in func_def.get("args"):
-                if (param.get("var_type") not in ["bool", "string", "int"]) and (param.get("var_type") not in self.structs):
+                #print("PARAM")
+                #print(param.get("var_type"))
+                
+                if (param.get("var_type") not in ["bool", "string", "int", "nil"]) and (param.get("var_type") not in self.structs):
                     param_name = param.get("name")
                     super().error(
                         ErrorType.TYPE_ERROR,
                         f"Invalid type for formal parameter {param_name} in function {func_name}",
                     )
+
             if func_name not in self.func_name_to_ast:
                 self.func_name_to_ast[func_name] = {}
              
@@ -163,24 +173,47 @@ class Interpreter(InterpreterBase):
         for formal_ast, actual_ast in zip(formal_args, actual_args):
             arg_name = formal_ast.get("name")
             arg_type = formal_ast.get("var_type")
-            print(arg_name)
-            print(arg_type)
-            print(formal_ast)
-            print(actual_ast)
+            #print(arg_name)
+            #print(arg_type)
+            #print(actual_ast)
+            accepted_types = ["int", "string", "bool", "void"]
 
+            
+            if (arg_type not in accepted_types) and (arg_type not in self.structs):
+                super().error(
+                ErrorType.NAME_ERROR,
+                f"Invalid type for formal parameter {arg_name} in function {func_name}*/",
+                )
+
+            #print(actual_ast.get_type())
+            
+            # don't know how to fix
+          
             #changing to object reference if struct
-            if arg_type in self.structs:
-                result = self.__eval_expr(actual_ast)
+            #and arg_type == self.type_of_struct_dict[actual_ast.get("name")]
+            if arg_type in self.structs :
+                if actual_ast == "nil":
+                    result = self.__eval_expr(actual_ast)
+                elif actual_ast.get("var_type")!= None and actual_ast.get("var_type")==arg_type:
+                    result = self.__eval_expr(actual_ast)
+                elif arg_type == self.type_of_struct_dict[actual_ast.get("name")]:
+                    result = self.__eval_expr(actual_ast) 
+                
+                else:
+                    super().error(
+                        ErrorType.TYPE_ERROR,
+                        f"Formal parameter {arg_name} excepted struct of type {arg_type}, type mismatch*/",
+                        )
+                
+               
                 #print("HERE")
                 #print(result)
                 #print(result)
             
             else:
                 result = copy.copy(self.__eval_expr(actual_ast))
-            
-            print("RESULT TYPE")
-            print(result.type())
-            print(result.value())
+
+           
             #bool parameter set to int
             if arg_type == "bool" and result.type() == "int":
                 if result.value() == 0:
@@ -282,6 +315,13 @@ class Interpreter(InterpreterBase):
                     ErrorType.NAME_ERROR, f"Undefined variable {var_name} in assignment"
                 )
     
+        """   
+        elif var_type!= "":
+            super().error(
+                    ErrorType.TYPE_ERROR,
+                    "NOT FOUND IN VALID STRUCTS",
+                )
+        """ 
     def __var_def(self, var_ast):
         var_name = var_ast.get("name")
         #retrieve variable type
@@ -298,14 +338,11 @@ class Interpreter(InterpreterBase):
             #create struct 
             #set to nil initially
             value = create_value(InterpreterBase.NIL_DEF)
-        elif var_type!= "":
-            super().error(
-                    ErrorType.TYPE_ERROR,
-                    "NOT FOUND IN VALID STRUCTS",
-                )
+            self.type_of_struct_dict[var_name] = var_type
+      
         else:
             super().error(
-                ErrorType.NAME_ERROR, f"All variable definitions must now specify an explicit type for the variable"
+                ErrorType.TYPE_ERROR, f"All variable definitions must now specify an explicit type for the variable"
             )
         if not self.env.create(var_name, value):
             super().error(
@@ -438,11 +475,9 @@ class Interpreter(InterpreterBase):
         if expr_ast.elem_type == InterpreterBase.BOOL_NODE:
             return Value(Type.BOOL, expr_ast.get("val"))
         if expr_ast.elem_type == InterpreterBase.VAR_NODE:
-            
             var_name = expr_ast.get("name")
             if "." in var_name:
                return self.get_nested_field(var_name)
-                
             else:
                 val = self.env.get(var_name)
                 if val is None:
@@ -479,6 +514,17 @@ class Interpreter(InterpreterBase):
                 left_value_obj = Value(Type.BOOL, False)
             else:
                 left_value_obj = Value(Type.BOOL, True)
+        
+        elif left_value_obj.type() == "int" and right_value_obj.type() == "int" and arith_ast.elem_type in ["||", "&&"]:
+            if left_value_obj.value() == 0:
+                left_value_obj = Value(Type.BOOL, False)
+            else: 
+                left_value_obj = Value(Type.BOOL, True)
+            if right_value_obj.value() == 0:
+                right_value_obj = Value(Type.BOOL, False)
+            else:
+                right_value_obj = Value(Type.BOOL, True)
+
 
         elif left_value_obj.type() in self.structs and right_value_obj.type() == "nil" and arith_ast.elem_type == "==":
             return Value(Type.BOOL, False)
@@ -562,6 +608,10 @@ class Interpreter(InterpreterBase):
         self.op_to_lambda[Type.INT][">="] = lambda x, y: Value(
             Type.BOOL, x.value() >= y.value()
         )
+        self.op_to_lambda[Type.INT]["&&"] = lambda x, y: Value(
+            Type.BOOL, x.value() & y.value()
+        )
+        
         #  set up operations on strings
         self.op_to_lambda[Type.STRING] = {}
         self.op_to_lambda[Type.STRING]["+"] = lambda x, y: Value(
@@ -683,32 +733,11 @@ interpreter = Interpreter()
 
 
 program_source = """
-struct animal {
-    name : string;
-    noise : string;
-    color : string;
-    extinct : bool;
-    ears: int; 
+func main() : int {
+  var a: int; 
+ 
 }
-struct person {
-  name: string;
-  height: int;
-}
-func main() : void {
-   var pig : animal;
-   var p : person;
-   var noise : string;
-   noise = make_pig(p, "oink");
-   print(noise);
-}
-func make_pig(a : animal, noise : string) : string{
-  if (a == nil){
-    print("making a pig");
-    a = new animal;
-  }
-  a.noise = noise;
-  return a.noise;
-}
+
 """
 
 interpreter.run(program_source)

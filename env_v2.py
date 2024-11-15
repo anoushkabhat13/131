@@ -1,13 +1,14 @@
 # The EnvironmentManager class keeps a mapping between each variable name (aka symbol)
 # in a brewin program and the Value object, which stores a type, and a value.
-from intbase import InterpreterBase, ErrorType
+from intbase import ErrorType
 from type_valuev2 import Type, Value, create_value, get_printable
 
 
 
 class EnvironmentManager:
-    def __init__(self):
+    def __init__(self, interpreter_in):
         self.environment = []
+        self.interpreter = interpreter_in
 
     # returns a VariableDef object
     def get(self, symbol):
@@ -27,19 +28,27 @@ class EnvironmentManager:
                 #print(env[symbol].type())
                 #print(value)
                 #print(value.type())
+                print("ENV SYMBOL TYPE")
+                print(env[symbol].type())
+
+                if (env[symbol].type() != 'int') and (env[symbol].type() != "bool") and (env[symbol].type()!= "String") and (value.type() == 'nil'):
+                    env[symbol] = value
+
                 if ((env[symbol].type() == "bool") and (value.type() == "int")):
                     if value.value() == 0:
                         env[symbol] = Value(Type.BOOL, False)
                     else:
                         env[symbol] = Value(Type.BOOL, True)
+
                 
                 elif (env[symbol].type() == "nil") and (value.type()!="int") and (value.type()!="bool") and (value.type()!="String"):
                     env[symbol] = value
+
                 
                 elif env[symbol].type() != value.type():
-                    InterpreterBase().error(
-                    ErrorType.TYPE_ERROR,
-                     f"{symbol} has type {env[symbol].type()} but was set to a {value.type()}",
+                    self.interpreter.error(
+                        ErrorType.TYPE_ERROR,
+                        f"{symbol} has type {env[symbol].type()} but was set to a {value.type()}",
                     )
 
                 env[symbol] = value

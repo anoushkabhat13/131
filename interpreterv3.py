@@ -32,7 +32,7 @@ class Interpreter(InterpreterBase):
     # into an abstract syntax tree (ast)
     def run(self, program):
         ast = parse_program(program)
-        print(ast)
+       
         #add a struct table
         self.__set_up_struct_table(ast)
         self.__set_up_function_table(ast)
@@ -47,14 +47,14 @@ class Interpreter(InterpreterBase):
             struct_name = struct_def.get("name")
             struct_fields = struct_def.get("fields")
             if struct_name not in self.structs:
-                self.structs[struct_name] = self.__create_class(struct_name, struct_fields)
+                self.structs[struct_name] = self.__create_class(struct_name, struct_fields, self.structs)
 
-    def __create_class(self, struct_name, struct_fields):
+    def __create_class(self, struct_name, struct_fields, structs):
         def __init__(self, **kwargs):
             for field in struct_fields:
-                
                 var_name = field.get("name")
-                var_type = field.get("var_type")  
+                var_type = field.get("var_type") 
+               
                 
                 if var_type == Interpreter.BOOL_NODE:
                     obj_value = create_value(InterpreterBase.FALSE_DEF)
@@ -63,7 +63,7 @@ class Interpreter(InterpreterBase):
                 elif var_type  == Interpreter.STRING_NODE:
                     obj_value = create_value("")
                 #EDITED THIS
-                elif var_type in self.structs:
+                elif var_type in structs:
                     #create struct 
                     #set to nil initially
                     obj_value = create_value(InterpreterBase.NIL_DEF)
@@ -104,7 +104,7 @@ class Interpreter(InterpreterBase):
         self.env.push_block()
         for statement in statements:
             #remove after
-            #print(statement)
+            
             if self.trace_output:
                 print(statement)
             status, return_val = self.__run_statement(statement)
@@ -160,6 +160,10 @@ class Interpreter(InterpreterBase):
             result = copy.copy(self.__eval_expr(actual_ast))
             arg_name = formal_ast.get("name")
             arg_type = formal_ast.get("var_type")
+       
+            #changing to object reference if struct
+            if arg_type in self.structs:
+                result = self.__eval_expr(actual_ast)
             
             #bool parameter set to int
             if arg_type == "bool" and result.type() == "int":
@@ -187,10 +191,7 @@ class Interpreter(InterpreterBase):
         self.env.pop_func()
 
         func_return_type = func_ast.get("return_type")
-        
-        #print("RETURN TYPE OF FUNC: " + func_return_type)
-        #print("RETURN TYPE OF RETURN EXPR: " + return_val.type())
- 
+     
         #int function with nil return type
         if return_val.type() == "nil" and func_return_type == "int":
             return Value(Type.INT,0)
@@ -205,7 +206,7 @@ class Interpreter(InterpreterBase):
 
         #void function with nil return type
         if return_val.type()== "nil" and func_return_type == "void":
-            return return_val
+            return  Value(Type.VOID, None)
         
         #bool return set to int coercion
         if func_return_type == "bool" and return_val.type() == "int":
@@ -213,6 +214,12 @@ class Interpreter(InterpreterBase):
                 return Value(Type.BOOL, False)
             else:
                 return Value(Type.BOOL, True)
+       
+        #bool return set to int coercion
+        if (func_return_type in self.structs) and return_val.type() == "nil":
+            return Value(Type.NIL, None)
+        
+        
         
         if func_return_type != return_val.type():
                 super().error(
@@ -245,15 +252,20 @@ class Interpreter(InterpreterBase):
             return Value(Type.STRING, inp)
 
     def __assign(self, assign_ast):
-        
-
+       
         var_name = assign_ast.get("name")
         value_obj = self.__eval_expr(assign_ast.get("expression"))
-        
-        if not self.env.set(var_name, value_obj):
-            super().error(
-                ErrorType.NAME_ERROR, f"Undefined variable {var_name} in assignment"
-            )
+        if "." in var_name:
+            self.set_nested_field(var_name, value_obj)
+            
+            
+        else:
+            value_obj = self.__eval_expr(assign_ast.get("expression"))
+            
+            if not self.env.set(var_name, value_obj):
+                super().error(
+                    ErrorType.NAME_ERROR, f"Undefined variable {var_name} in assignment"
+                )
     
     def __var_def(self, var_ast):
         var_name = var_ast.get("name")
@@ -271,6 +283,11 @@ class Interpreter(InterpreterBase):
             #create struct 
             #set to nil initially
             value = create_value(InterpreterBase.NIL_DEF)
+        elif var_type!= "":
+            super().error(
+                    ErrorType.TYPE_ERROR,
+                    "NOT FOUND IN VALID STRUCTS",
+                )
         else:
             super().error(
                 ErrorType.NAME_ERROR, f"All variable definitions must now specify an explicit type for the variable"
@@ -279,13 +296,109 @@ class Interpreter(InterpreterBase):
             super().error(
                 ErrorType.NAME_ERROR, f"Duplicate definition for variable {var_name}"
             )
+
+    def set_nested_field(self, var_name, value):
+        # Split var_name into parts by dots
+        parts = var_name.split('.')
+      
+        # Start with the top-level object in the environment
+        current_obj = self.env.get(parts[0])
         
+        if current_obj!= None and current_obj.type() == "nil":
+            super().error(
+                ErrorType.FAULT_ERROR, f"Dot operator invalid on uninitialized struct"
+            )
+
+        if (current_obj == None or current_obj.type() not in self.structs):
+            super().error(
+                ErrorType.TYPE_ERROR, f"Dot operator only valid on struct"
+            )
+        
+
+        # Traverse each part except the last to reach the second-to-last object
+        for part in parts[1:-1]:
+            if current_obj!=None and current_obj.type() == "nil":
+                super().error(
+                    ErrorType.FAULT_ERROR,  f"Dot operator invalid on uninitialized struct"
+                )
+
+            if(current_obj == None or current_obj.type() not in self.structs):
+                super().error(
+                    ErrorType.TYPE_ERROR, f"Dot operator only valid on struct"
+                )
+
+            if not hasattr(current_obj, part):
+                super().error(
+                    ErrorType.NAME_ERROR, f"Invalid attribute {part}"
+                )
+
+            current_obj = getattr(current_obj, part)
+           
+        if not hasattr(current_obj, parts[-1]):
+            super().error(
+                ErrorType.NAME_ERROR, f"Invalid attribute {parts[-1]}"
+            )
+
+        
+        cur_type = getattr(current_obj, parts[-1]).type()
+        val_type = value.type()
+
+        if(cur_type != val_type):
+            super().error(
+                    ErrorType.TYPE_ERROR, f"Setting a struct field of type {cur_type} to a value of type {val_type}"
+                )
+        
+        # Use setattr on the last object to set the final attribute
+        setattr(current_obj, parts[-1], value)
+
+
+    def get_nested_field(self, var_name):
+        # Split var_name into parts by dots (e.g., 'struct1.struct2.field' -> ['struct1', 'struct2', 'field'])
+        parts = var_name.split('.')
+        
+        # Start from the environment dictionary
+        current_obj = self.env.get(parts[0])
+        
+
+        if current_obj!= None and current_obj.type() == "nil":
+            super().error(
+                ErrorType.FAULT_ERROR,  f"Dot operator invalid on uninitialized struct"
+            )
+        
+        if(current_obj ==None or current_obj.type() not in self.structs):
+            super().error(
+                ErrorType.TYPE_ERROR, f"Dot operator only valid on struct"
+            )
+
+        # Traverse each part to go deeper
+        for part in parts[1:]:
+            
+            if current_obj!= None and current_obj.type() == "nil":
+                super().error(
+                    ErrorType.FAULT_ERROR,  f"Dot operator invalid on uninitialized struct"
+                )
+            
+            if(current_obj.type() not in self.structs or current_obj.type() == None):
+                super().error(
+                    ErrorType.TYPE_ERROR, f"Dot operator only valid on struct"
+                )
+
+            if not hasattr(current_obj, part):
+                super().error(
+                    ErrorType.NAME_ERROR, f"Invalid attribute {part}"
+                )
+            
+            current_obj = getattr(current_obj, part)
+            
+        
+        # Return the final field
+        return current_obj
         
 
     def __eval_expr(self, expr_ast):
 
         var_name = expr_ast.get("name")
-
+       
         
         if expr_ast.elem_type == InterpreterBase.NEW_NODE:
             struct_name = expr_ast.get("var_type")
@@ -302,18 +415,14 @@ class Interpreter(InterpreterBase):
             return Value(Type.BOOL, expr_ast.get("val"))
         if expr_ast.elem_type == InterpreterBase.VAR_NODE:
             
-
             var_name = expr_ast.get("name")
             if "." in var_name:
-                struct_name, field_name = var_name.split('.')
-                #print(struct_name)
-                #print(field_name)
-                struct_obj = self.env.get(struct_name)
-
-                return getattr(struct_obj, field_name)
+               return self.get_nested_field(var_name)
                 
             else:
                 val = self.env.get(var_name)
+                #print("VAL FOUND")
+                #print(val)
                 if val is None:
                     super().error(ErrorType.NAME_ERROR, f"Variable {var_name} not found")
                 return val
@@ -331,7 +440,10 @@ class Interpreter(InterpreterBase):
         right_value_obj = self.__eval_expr(arith_ast.get("op2"))
 
         #if left_value_obj.type() == "BOOL" and right_value_obj.type() == "INT":
-
+        unaccepted_types = ["int", "string", "bool", "void"]
+        #print(left_value_obj.type())
+        #print(right_value_obj.type())
+        #print(left_value_obj.elem_type)
         #bool return set to int coercion
         if left_value_obj.type() == "bool" and right_value_obj.type() == "int":
             if right_value_obj.value() == 0:
@@ -346,7 +458,18 @@ class Interpreter(InterpreterBase):
             else:
                 left_value_obj = Value(Type.BOOL, True)
 
+        
+        elif (left_value_obj.type() in unaccepted_types) and right_value_obj.type() == "nil":
+            super().error(
+                ErrorType.TYPE_ERROR,
+                f"Cannot compare {left_value_obj.type()} to nil",
+            )
 
+        elif (right_value_obj.type() in unaccepted_types) and left_value_obj.type() == "nil":
+            super().error(
+                ErrorType.TYPE_ERROR,
+                f"Cannot compare {left_value_obj.type()} to nil",
+            )
         if not self.__compatible_types(
             arith_ast.elem_type, left_value_obj, right_value_obj
         ):
@@ -497,15 +620,24 @@ class Interpreter(InterpreterBase):
                 status, return_val = self.__run_statements(statements)
                 if status == ExecStatus.RETURN:
                     return status, return_val
-            self.__run_statement(update_ast)  # update counter variable
+                self.__run_statement(update_ast)  # update counter variable
 
         return (ExecStatus.CONTINUE, Interpreter.NIL_VALUE)
 
     def __do_return(self, return_ast):
+    
         expr_ast = return_ast.get("expression")
+       
         if expr_ast is None:
             return (ExecStatus.RETURN, Interpreter.NIL_VALUE)
-        value_obj = copy.copy(self.__eval_expr(expr_ast))
+        
+        if expr_ast.elem_type == "var":
+            a = expr_ast.get("name")
+            if self.env.get(a).type() in self.structs:
+                value_obj = self.__eval_expr(expr_ast)
+        else:
+            value_obj = copy.copy(self.__eval_expr(expr_ast))
+        #print(value_obj)
         return (ExecStatus.RETURN, value_obj)
     
 
@@ -513,19 +645,19 @@ interpreter = Interpreter()
 
 
 program_source = """
-struct flea {
-  age: int;
-  infected : bool;
+struct s {
+  a:int;
 }
 
-func main() : void {
-  var a: flea;    
-  a = new flea;
-  print(a.age); /* prints 0 */
-  print(a.infected);
-  a.age  = 2;
-
-
+func main() : int {
+  var x: s;
+  x = new s;
+  print(x.a);
+  x.a = 2;
+  print(x.a);
+  x.a = 5;
+  print(x.a);
+  x.a = "FHFH";
 }
 
 """
